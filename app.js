@@ -14,6 +14,7 @@
   const toast        = $('#toast');
   const sidebar      = $('#sidebar');
   const hamburger    = $('#hamburger');
+  const btnTheme     = $('#btn-theme');
 
   // Buttons
   const btnNew       = $('#btn-new');
@@ -47,6 +48,41 @@
   let currentId  = null;         // Currently loaded entry id
   let sortAsc    = false;        // false = newest first
   let savedSelection = null;     // For link insertion
+
+  // ── Theme toggle ──
+  // Modes: 'auto' (follow system), 'light', 'dark'
+  function getStoredTheme() {
+    return localStorage.getItem('journal_theme') || 'auto';
+  }
+
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === 'auto') {
+      root.removeAttribute('data-theme');
+    } else {
+      root.setAttribute('data-theme', theme);
+    }
+    updateThemeButton(theme);
+  }
+
+  function updateThemeButton(theme) {
+    const icons = { auto: '🌗', light: '☀️', dark: '🌙' };
+    const labels = { auto: 'Auto (system)', light: 'Light mode', dark: 'Dark mode' };
+    btnTheme.textContent = icons[theme];
+    btnTheme.title = labels[theme];
+  }
+
+  function cycleTheme() {
+    const order = ['auto', 'light', 'dark'];
+    const current = getStoredTheme();
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    localStorage.setItem('journal_theme', next);
+    applyTheme(next);
+    const labels = { auto: 'Auto (system)', light: 'Light', dark: 'Dark' };
+    showToast(`Theme: ${labels[next]}`);
+  }
+
+  btnTheme.addEventListener('click', cycleTheme);
 
   // ── Helpers ──
   function uuid() {
@@ -494,6 +530,7 @@ Be warm, non-judgmental, and supportive. Do NOT diagnose. Format your response w
   });
 
   // ── Init ──
+  applyTheme(getStoredTheme());
   loadFromLocalStorage();
   renderEntryList();
 
