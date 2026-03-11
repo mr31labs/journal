@@ -325,31 +325,54 @@ body {
 }
 
 .paper {
+  /* ── baseline grid ── */
+  --line-h: 32px;
   --rule-color: rgba(180, 170, 155, .25);
   --margin-color: rgba(210, 80, 80, .22);
+  --pad-top: 32px;          /* 1 × line-h */
+  --pad-side: 56px;
+  --pad-left: 72px;         /* space for margin line */
+  --margin-line-x: 55px;    /* red margin position */
+
   width: 100%;
   max-width: 720px;
   min-height: 600px;
+
   background:
     /* red margin line */
-    linear-gradient(to right, transparent 55px, var(--margin-color) 55px, var(--margin-color) 56px, transparent 56px),
-    /* ruled lines */
+    linear-gradient(
+      to right,
+      transparent var(--margin-line-x),
+      var(--margin-color) var(--margin-line-x),
+      var(--margin-color) calc(var(--margin-line-x) + 1px),
+      transparent calc(var(--margin-line-x) + 1px)
+    ),
+    /* ruled lines — the line sits at the BOTTOM of each cell,
+       i.e. text baseline sits just above the rule line */
     repeating-linear-gradient(
       to bottom,
       transparent,
-      transparent 31px,
-      var(--rule-color) 31px,
-      var(--rule-color) 32px
+      transparent calc(var(--line-h) - 1px),
+      var(--rule-color) calc(var(--line-h) - 1px),
+      var(--rule-color) var(--line-h)
     ),
     var(--bg-paper);
+
+  /* Offset the ruled-lines background so the first rule
+     appears exactly at bottom-of-first-text-line inside .editor.
+     Title area = 64px (2×line-h) + border 1px + pad-top.
+     We want the background grid origin to align with .editor text. */
+  background-position-y: 0;
   background-attachment: local;
+
   border-radius: 2px;
   box-shadow:
     0 1px 4px var(--shadow),
     0 8px 28px var(--shadow),
     0 0 0 1px var(--border),
     inset 0 0 60px rgba(0,0,0,.03);
-  padding: 48px 56px 48px 72px;
+
+  padding: var(--pad-top) var(--pad-side) var(--pad-top) var(--pad-left);
   position: relative;
   animation: fadeIn .35s ease;
   transition: background .3s, box-shadow .3s;
@@ -390,17 +413,21 @@ body {
 }
 
 .title-input {
+  display: block;
   width: 100%;
   border: none;
   outline: none;
   background: transparent;
   font-family: 'Cormorant Garamond', serif;
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: 700;
   color: var(--text);
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  line-height: var(--line-h);
+  height: calc(var(--line-h) * 2);   /* exactly 2 grid lines */
+  padding: 0;
+  margin: 0;
   border-bottom: 1px solid var(--border);
+  margin-bottom: calc(var(--line-h) - 1px); /* fill to next grid line (minus border) */
   transition: border-color .2s;
 }
 .title-input::placeholder {
@@ -414,13 +441,14 @@ body {
 .editor {
   font-family: 'Cormorant Garamond', serif;
   font-size: 1.2rem;
-  line-height: 32px;
+  line-height: var(--line-h);
   color: var(--text);
-  min-height: 400px;
+  min-height: calc(var(--line-h) * 14); /* ~14 lines minimum */
   outline: none;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  padding-top: 0;
+  padding: 0;
+  margin: 0;
 }
 .editor:empty::before {
   content: 'Begin writing…';
@@ -708,7 +736,12 @@ body {
   }
   .sidebar.open { transform: translateX(0); }
   .hamburger { display: flex; align-items: center; justify-content: center; }
-  .paper { padding: 28px 24px; }
+  .paper {
+    --pad-top: 32px;
+    --pad-side: 20px;
+    --pad-left: 44px;
+    --margin-line-x: 30px;
+  }
   .editor-container { padding: 16px 8px 40px; }
 }
 
