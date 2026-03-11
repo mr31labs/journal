@@ -90,12 +90,45 @@
   <div class="modal-overlay ai-modal" id="ai-modal">
     <div class="modal">
       <h2>✨ AI Journal Insights</h2>
-      <label for="ai-key">OpenAI-compatible API Key</label>
-      <input type="password" id="ai-key" placeholder="sk-…">
-      <label for="ai-endpoint">API Endpoint (optional)</label>
-      <input type="url" id="ai-endpoint" placeholder="https://api.openai.com/v1/chat/completions">
+
+      <label for="ai-provider">AI Provider</label>
+      <select id="ai-provider">
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="deepseek">DeepSeek</option>
+      </select>
+
       <label for="ai-model">Model</label>
-      <input type="text" id="ai-model" placeholder="gpt-4o-mini">
+      <select id="ai-model">
+        <!-- populated by JS based on provider -->
+      </select>
+
+      <label for="ai-key">API Key</label>
+      <div class="key-input-row">
+        <input type="password" id="ai-key" placeholder="Paste your API key…">
+        <span class="key-status" id="key-status"></span>
+      </div>
+
+      <div class="ai-disclosure" id="ai-disclosure">
+        <details>
+          <summary>⚠️ Privacy &amp; Data Disclosure</summary>
+          <p>When you click <strong>Analyze</strong>, the <em>plain text</em> of all your journal entries is sent to the selected AI provider's API for processing. This means:</p>
+          <ul>
+            <li>Your entries leave your device and are transmitted to a third-party server.</li>
+            <li>Each provider has its own data retention and privacy policy — please review them.</li>
+            <li>Your API key is stored <strong>only</strong> in your browser's <code>localStorage</code> and is never shared with anyone other than the provider you choose.</li>
+            <li>No data is collected by this app. The app has no backend — it is 100% client-side.</li>
+          </ul>
+          <p class="disclosure-links">
+            <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener">OpenAI Privacy</a> ·
+            <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API Terms</a> ·
+            <a href="https://www.anthropic.com/privacy" target="_blank" rel="noopener">Anthropic Privacy</a> ·
+            <a href="https://www.deepseek.com/privacy" target="_blank" rel="noopener">DeepSeek Privacy</a>
+          </p>
+        </details>
+      </div>
+
       <div class="modal-actions">
         <button id="ai-cancel">Cancel</button>
         <button class="btn-primary" id="ai-analyze">Analyze My Journal</button>

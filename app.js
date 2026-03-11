@@ -36,12 +36,49 @@
 
   // AI modal
   const aiModal      = $('#ai-modal');
+  const aiProvider   = $('#ai-provider');
   const aiKey        = $('#ai-key');
-  const aiEndpoint   = $('#ai-endpoint');
   const aiModel      = $('#ai-model');
   const aiAnalyze    = $('#ai-analyze');
   const aiCancel     = $('#ai-cancel');
   const aiResults    = $('#ai-results');
+  const keyStatus    = $('#key-status');
+
+  // ── AI Provider config ──
+  const AI_PROVIDERS = {
+    openai: {
+      name: 'OpenAI',
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+      keyPrefix: 'sk-',
+      keyPattern: /^sk-.{20,}/,
+      keyHint: 'Starts with sk-'
+    },
+    gemini: {
+      name: 'Google Gemini',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent',
+      models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+      keyPrefix: 'AI',
+      keyPattern: /^AI.{20,}/,
+      keyHint: 'Starts with AI'
+    },
+    anthropic: {
+      name: 'Anthropic',
+      endpoint: 'https://api.anthropic.com/v1/messages',
+      models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
+      keyPrefix: 'sk-ant-',
+      keyPattern: /^sk-ant-.{20,}/,
+      keyHint: 'Starts with sk-ant-'
+    },
+    deepseek: {
+      name: 'DeepSeek',
+      endpoint: 'https://api.deepseek.com/chat/completions',
+      models: ['deepseek-chat', 'deepseek-reasoner'],
+      keyPrefix: 'sk-',
+      keyPattern: /^sk-.{20,}/,
+      keyHint: 'Starts with sk-'
+    }
+  };
 
   // ── State ──
   let entries    = [];           // Array of entry objects
@@ -119,16 +156,64 @@
 
   // ── AI settings persistence ──
   function loadAISettings() {
-    aiKey.value      = localStorage.getItem('journal_ai_key') || '';
-    aiEndpoint.value = localStorage.getItem('journal_ai_endpoint') || 'https://api.openai.com/v1/chat/completions';
-    aiModel.value    = localStorage.getItem('journal_ai_model') || 'gpt-4o-mini';
+    const provider = localStorage.getItem('journal_ai_provider') || 'openai';
+    aiProvider.value = provider;
+    populateModels(provider);
+    aiKey.value = localStorage.getItem('journal_ai_key') || '';
+    const savedModel = localStorage.getItem('journal_ai_model');
+    if (savedModel) {
+      // Try to select the saved model if it exists for this provider
+      const option = [...aiModel.options].find(o => o.value === savedModel);
+      if (option) aiModel.value = savedModel;
+    }
+    validateKey();
   }
 
   function saveAISettings() {
+    localStorage.setItem('journal_ai_provider', aiProvider.value);
     localStorage.setItem('journal_ai_key', aiKey.value.trim());
-    localStorage.setItem('journal_ai_endpoint', aiEndpoint.value.trim());
-    localStorage.setItem('journal_ai_model', aiModel.value.trim());
+    localStorage.setItem('journal_ai_model', aiModel.value);
   }
+
+  function populateModels(provider) {
+    const config = AI_PROVIDERS[provider];
+    aiModel.innerHTML = '';
+    config.models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      aiModel.appendChild(opt);
+    });
+  }
+
+  function validateKey() {
+    const key = aiKey.value.trim();
+    const provider = aiProvider.value;
+    const config = AI_PROVIDERS[provider];
+
+    if (!key) {
+      keyStatus.textContent = '';
+      keyStatus.className = 'key-status';
+      return false;
+    }
+
+    if (config.keyPattern.test(key)) {
+      keyStatus.textContent = '✓ Valid format';
+      keyStatus.className = 'key-status valid';
+      return true;
+    } else {
+      keyStatus.textContent = `✗ ${config.keyHint}`;
+      keyStatus.className = 'key-status invalid';
+      return false;
+    }
+  }
+
+  aiProvider.addEventListener('change', () => {
+    populateModels(aiProvider.value);
+    validateKey(); // Re-validate key for new provider
+  });
+
+  aiKey.addEventListener('input', validateKey);
 
   // ── Render entry list ──
   function renderEntryList() {
@@ -375,10 +460,12 @@
     saveAISettings();
 
     const key      = aiKey.value.trim();
-    const endpoint = aiEndpoint.value.trim() || 'https://api.openai.com/v1/chat/completions';
-    const model    = aiModel.value.trim() || 'gpt-4o-mini';
+    const provider = aiProvider.value;
+    const config   = AI_PROVIDERS[provider];
+    const model    = aiModel.value;
 
     if (!key) { showToast('Please enter an API key'); return; }
+    if (!validateKey()) { showToast('API key format looks incorrect'); return; }
     if (entries.length === 0) { showToast('No entries to analyze'); return; }
 
     // Build the journal text
@@ -401,35 +488,85 @@
 
 Be warm, non-judgmental, and supportive. Do NOT diagnose. Format your response with clear sections using markdown headers (###).`;
 
+    const userMessage = `Here are my journal entries:\n\n${journalText}`;
+
     // Show loading
     aiResults.style.display = '';
     aiResults.innerHTML = '<div class="ai-loading"><div class="spinner"></div><br>Analyzing your journal…</div>';
 
     try {
-      const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${key}`
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user',   content: `Here are my journal entries:\n\n${journalText}` }
-          ],
-          temperature: 0.7,
-          max_tokens: 1500
-        })
-      });
+      let reply;
 
-      if (!resp.ok) {
-        const err = await resp.text();
-        throw new Error(`API error ${resp.status}: ${err}`);
+      if (provider === 'gemini') {
+        // Gemini uses a different API format
+        const endpoint = config.endpoint.replace('{MODEL}', model);
+        const resp = await fetch(`${endpoint}?key=${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ parts: [{ text: userMessage }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 1500 }
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(`Gemini API error ${resp.status}: ${err}`);
+        }
+        const data = await resp.json();
+        reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response received.';
+
+      } else if (provider === 'anthropic') {
+        // Anthropic uses x-api-key and different body format
+        const resp = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1500,
+            system: systemPrompt,
+            messages: [
+              { role: 'user', content: userMessage }
+            ]
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(`Anthropic API error ${resp.status}: ${err}`);
+        }
+        const data = await resp.json();
+        reply = data.content?.[0]?.text || 'No response received.';
+
+      } else {
+        // OpenAI-compatible (OpenAI, DeepSeek)
+        const resp = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userMessage }
+            ],
+            temperature: 0.7,
+            max_tokens: 1500
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(`API error ${resp.status}: ${err}`);
+        }
+        const data = await resp.json();
+        reply = data.choices?.[0]?.message?.content || 'No response received.';
       }
-
-      const data = await resp.json();
-      const reply = data.choices?.[0]?.message?.content || 'No response received.';
 
       // Simple markdown-to-html (headers + bold + line breaks)
       aiResults.innerHTML = renderMarkdown(reply);
